@@ -4,3 +4,13 @@ IMPLEMENTATION_PLAN.md
 .codex/
 .agents/
 **/SKILL.md
+
+# App artifacts
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
