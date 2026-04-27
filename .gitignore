@@ -1,0 +1,6 @@
+IMPLEMENTATION_PLAN.md
+
+# Local Codex / agent skill files
+.codex/
+.agents/
+**/SKILL.md
