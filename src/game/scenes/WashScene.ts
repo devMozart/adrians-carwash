@@ -18,6 +18,7 @@ export class WashScene extends Phaser.Scene {
   private dirtMeterGraphics?: Phaser.GameObjects.Graphics
   private dirtMeterText?: Phaser.GameObjects.Text
   private sprayEmitter?: Phaser.GameObjects.Particles.ParticleEmitter
+  private sprayMistEmitter?: Phaser.GameObjects.Particles.ParticleEmitter
   private splashEmitter?: Phaser.GameObjects.Particles.ParticleEmitter
   private celebrationModal?: Phaser.GameObjects.Container
   private fireworkTimer?: Phaser.Time.TimerEvent
@@ -28,6 +29,14 @@ export class WashScene extends Phaser.Scene {
   private hoseBase = new Phaser.Math.Vector2()
   private nozzleTip = new Phaser.Math.Vector2()
   private sprayTarget = new Phaser.Math.Vector2()
+  private sprayDirection = new Phaser.Math.Vector2(0, -1)
+  private sprayPerpendicular = new Phaser.Math.Vector2(1, 0)
+  private sprayVelocity = new Phaser.Math.Vector2(0, -780)
+  private sprayMistVelocity = new Phaser.Math.Vector2(0, -620)
+  private sprayAngleDegrees = -90
+  private sprayLifespan = 120
+  private sprayMistLifespan = 150
+  private sprayLine = new Phaser.Geom.Line(-4, 0, 4, 0)
   private spraying = false
   private isComplete = false
   private bigBrushCheatEnabled = false
@@ -136,18 +145,43 @@ export class WashScene extends Phaser.Scene {
     })
     this.overlayGraphics = this.add.graphics()
 
-    this.sprayEmitter = this.add.particles(0, 0, 'water-drop', {
+    this.sprayEmitter = this.add.particles(0, 0, 'water-streak', {
       alpha: { start: 0.92, end: 0.2 },
-      scale: { start: 0.3, end: 0.08 },
-      lifespan: { min: 90, max: 140 },
-      quantity: 3,
-      frequency: 16,
+      scale: { start: 0.52, end: 0.16 },
+      lifespan: () => Phaser.Math.Between(Math.round(this.sprayLifespan * 0.84), this.sprayLifespan),
+      quantity: 4,
+      frequency: 18,
       radial: false,
-      speedX: 0,
-      speedY: -800,
-      gravityY: 0,
+      speedX: () =>
+        this.sprayVelocity.x * Phaser.Math.FloatBetween(0.9, 1.08) +
+        this.sprayPerpendicular.x * Phaser.Math.FloatBetween(-85, 85),
+      speedY: () =>
+        this.sprayVelocity.y * Phaser.Math.FloatBetween(0.9, 1.08) +
+        this.sprayPerpendicular.y * Phaser.Math.FloatBetween(-85, 85),
+      rotate: () => this.sprayAngleDegrees + Phaser.Math.FloatBetween(-8, 8),
+      gravityY: 14,
       emitting: false,
       blendMode: 'NORMAL',
+      emitZone: { source: this.sprayLine } as Phaser.Types.GameObjects.Particles.EmitZoneData,
+    })
+
+    this.sprayMistEmitter = this.add.particles(0, 0, 'water-drop', {
+      alpha: { start: 0.5, end: 0.05 },
+      scale: { start: 0.24, end: 0.06 },
+      lifespan: () => Phaser.Math.Between(Math.round(this.sprayMistLifespan * 0.82), this.sprayMistLifespan),
+      quantity: 3,
+      frequency: 24,
+      radial: false,
+      speedX: () =>
+        this.sprayMistVelocity.x * Phaser.Math.FloatBetween(0.86, 1.02) +
+        this.sprayPerpendicular.x * Phaser.Math.FloatBetween(-140, 140),
+      speedY: () =>
+        this.sprayMistVelocity.y * Phaser.Math.FloatBetween(0.86, 1.02) +
+        this.sprayPerpendicular.y * Phaser.Math.FloatBetween(-140, 140),
+      gravityY: 24,
+      emitting: false,
+      blendMode: 'NORMAL',
+      emitZone: { source: this.sprayLine } as Phaser.Types.GameObjects.Particles.EmitZoneData,
     })
 
     this.splashEmitter = this.add.particles(0, 0, 'water-drop', {
@@ -210,6 +244,7 @@ export class WashScene extends Phaser.Scene {
       sprite,
       this.dirtOverlay.gameObject,
       this.sprayEmitter,
+      this.sprayMistEmitter,
       this.impactGraphics,
       this.splashEmitter,
       this.hoseGraphics,
@@ -387,15 +422,37 @@ export class WashScene extends Phaser.Scene {
     const pulse = 1 + Math.sin(this.time.now * 0.02) * 0.08
     const directionX = distance > 0 ? (this.sprayTarget.x - this.nozzleTip.x) / distance : 0
     const directionY = distance > 0 ? (this.sprayTarget.y - this.nozzleTip.y) / distance : -1
+    const nozzleSpread = this.scale.width < 768 ? 8 : 6
+
+    this.sprayDirection.set(directionX, directionY)
+    this.sprayPerpendicular.set(-directionY, directionX)
+    this.sprayVelocity.set(directionX * spraySpeed, directionY * spraySpeed)
+    this.sprayMistVelocity.set(directionX * spraySpeed * 0.76, directionY * spraySpeed * 0.76)
+    this.sprayAngleDegrees = Phaser.Math.RadToDeg(
+      Phaser.Math.Angle.Between(this.nozzleTip.x, this.nozzleTip.y, this.sprayTarget.x, this.sprayTarget.y),
+    )
+    this.sprayLifespan = sprayLifespan
+    this.sprayMistLifespan = Math.round(sprayLifespan * 1.18)
+    this.sprayLine.setTo(
+      this.sprayPerpendicular.x * nozzleSpread,
+      this.sprayPerpendicular.y * nozzleSpread,
+      this.sprayPerpendicular.x * -nozzleSpread,
+      this.sprayPerpendicular.y * -nozzleSpread,
+    )
 
     if (this.sprayEmitter) {
       this.sprayEmitter.setPosition(this.nozzleTip.x, this.nozzleTip.y)
-      this.sprayEmitter.speedX = directionX * spraySpeed
-      this.sprayEmitter.speedY = directionY * spraySpeed
-      this.sprayEmitter.lifespan = { min: sprayLifespan * 0.82, max: sprayLifespan }
 
       if (!this.sprayEmitter.emitting) {
         this.sprayEmitter.start()
+      }
+    }
+
+    if (this.sprayMistEmitter) {
+      this.sprayMistEmitter.setPosition(this.nozzleTip.x, this.nozzleTip.y)
+
+      if (!this.sprayMistEmitter.emitting) {
+        this.sprayMistEmitter.start()
       }
     }
 
@@ -425,6 +482,7 @@ export class WashScene extends Phaser.Scene {
   private stopSpray() {
     this.spraying = false
     this.sprayEmitter?.stop()
+    this.sprayMistEmitter?.stop()
     this.splashEmitter?.stop()
     this.impactGraphics?.clear()
   }
@@ -439,6 +497,17 @@ export class WashScene extends Phaser.Scene {
       dot.fillCircle(9, 9, 6)
       dot.generateTexture('water-drop', 24, 24)
       dot.destroy()
+    }
+
+    if (!this.textures.exists('water-streak')) {
+      const streak = this.add.graphics()
+      streak.setVisible(false)
+      streak.fillStyle(0x4caeff, 1)
+      streak.fillEllipse(18, 10, 30, 12)
+      streak.fillStyle(0xbfe9ff, 0.6)
+      streak.fillEllipse(14, 8, 14, 5)
+      streak.generateTexture('water-streak', 36, 20)
+      streak.destroy()
     }
 
     this.buildSparkTexture('spark-gold', 0xffcf5a)
@@ -586,7 +655,7 @@ export class WashScene extends Phaser.Scene {
     const height = this.scale.height
     const isMobileLayout = width < 768
     const modalWidth = Math.min(width - 40, isMobileLayout ? 360 : 460)
-    const modalHeight = isMobileLayout ? 238 : 224
+    const modalHeight = isMobileLayout ? 258 : 268
     const modalX = width * 0.5
     const modalY = height * 0.5
 
@@ -622,7 +691,7 @@ export class WashScene extends Phaser.Scene {
 
     const cleanAgainButton = this.createModalButton(
       0,
-      28,
+      10,
       Math.min(modalWidth - 70, 250),
       48,
       0x2fae73,
@@ -635,7 +704,7 @@ export class WashScene extends Phaser.Scene {
 
     const garageButton = this.createModalButton(
       0,
-      88,
+      72,
       Math.min(modalWidth - 70, 250),
       48,
       0x2d95b7,
@@ -711,6 +780,9 @@ export class WashScene extends Phaser.Scene {
         yoyo: true,
         ease: 'Quad.Out',
       })
+    })
+
+    hitArea.on('pointerup', () => {
       onClick()
     })
 
@@ -733,6 +805,7 @@ export class WashScene extends Phaser.Scene {
     this.dirtMeterText = undefined
     this.hoseGraphics = undefined
     this.sprayEmitter = undefined
+    this.sprayMistEmitter = undefined
     this.splashEmitter = undefined
     this.dirtOverlay?.destroy()
     this.dirtOverlay = undefined

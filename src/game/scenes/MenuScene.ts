@@ -5,6 +5,15 @@ const TITLE_FONT = '"Trebuchet MS", "Verdana", sans-serif'
 
 export class MenuScene extends Phaser.Scene {
   private root?: Phaser.GameObjects.Container
+  private cardsContainer?: Phaser.GameObjects.Container
+  private cardsMinOffsetY = 0
+  private cardsMaxOffsetY = 0
+  private inputReadyAt = 0
+  private activeScrollPointerId: number | null = null
+  private scrollStartPointerY = 0
+  private scrollStartContainerY = 0
+  private isDraggingCards = false
+  private suppressCardTap = false
 
   constructor() {
     super('menu')
@@ -12,8 +21,16 @@ export class MenuScene extends Phaser.Scene {
 
   create() {
     this.scale.on('resize', this.handleResize, this)
+    this.input.on('pointerdown', this.handlePointerDown, this)
+    this.input.on('pointermove', this.handlePointerMove, this)
+    this.input.on('pointerup', this.handlePointerUp, this)
+    this.input.on('gameout', this.handleGameOut, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleResize, this)
+      this.input.off('pointerdown', this.handlePointerDown, this)
+      this.input.off('pointermove', this.handlePointerMove, this)
+      this.input.off('pointerup', this.handlePointerUp, this)
+      this.input.off('gameout', this.handleGameOut, this)
       this.clearRoot()
     })
 
@@ -25,16 +42,20 @@ export class MenuScene extends Phaser.Scene {
 
     const width = this.scale.width
     const height = this.scale.height
-    const titleY = Math.max(112, height * 0.17)
+    const titleY = width < 640 ? 56 : Math.max(112, height * 0.17)
     const cardsTop = Math.max(250, height * 0.44)
 
     this.cameras.main.setBackgroundColor('#7fd1fb')
 
     this.root = this.add.container(0, 0)
+    this.cardsContainer = this.add.container(0, 0)
+    this.inputReadyAt = this.time.now + 160
 
     this.drawBackdrop(width, height)
     this.drawTitle(width, titleY)
-    this.drawVehicleCards(width, height, cardsTop)
+    this.drawVehicleCards(width, height, cardsTop, titleY)
+
+    this.root.add(this.cardsContainer)
   }
 
   private drawBackdrop(width: number, height: number) {
@@ -88,17 +109,36 @@ export class MenuScene extends Phaser.Scene {
     this.root?.add([banner, title])
   }
 
-  private drawVehicleCards(width: number, height: number, top: number) {
+  private drawVehicleCards(width: number, height: number, top: number, titleY: number) {
     const isStacked = width < 940
+    const desktopColumns = vehicleCatalog.length >= 3 && width >= 1280 ? 3 : 2
     const gap = isStacked ? 24 : 30
-    const cardWidth = Math.min(isStacked ? width - 36 : (width - 84) / 2, 420)
-    const cardHeight = Math.min(Math.max(height * 0.45, 280), 360)
-    const startX = isStacked ? width * 0.5 : width * 0.5 - (cardWidth * 0.5 + gap * 0.5)
-    const startY = isStacked ? top - cardHeight * 0.5 : top
+    const cardWidth = Math.min(
+      isStacked ? width - 36 : (width - gap * (desktopColumns - 1) - 48) / desktopColumns,
+      420,
+    )
+    const cardHeight = isStacked
+      ? Math.min(Math.max(height * 0.34, 240), 320)
+      : Math.min(Math.max(height * 0.45, 280), 360)
+    const totalDesktopWidth = desktopColumns * cardWidth + (desktopColumns - 1) * gap
+    const startX = isStacked ? width * 0.5 : width * 0.5 - totalDesktopWidth * 0.5 + cardWidth * 0.5
+    const startY = isStacked ? titleY + 44 + 28 + cardHeight * 0.5 : top
+    const rows = isStacked ? vehicleCatalog.length : Math.ceil(vehicleCatalog.length / desktopColumns)
+    const contentBottom = startY + (rows - 1) * (cardHeight + gap) + cardHeight * 0.5
+    const visibleBottom = height - 18
+
+    this.cardsMinOffsetY = isStacked ? Math.min(0, visibleBottom - contentBottom) : 0
+    this.cardsMaxOffsetY = 0
+
+    if (this.cardsContainer) {
+      this.cardsContainer.y = Phaser.Math.Clamp(this.cardsContainer.y, this.cardsMinOffsetY, this.cardsMaxOffsetY)
+    }
 
     vehicleCatalog.forEach((vehicle, index) => {
-      const x = isStacked ? startX : startX + index * (cardWidth + gap)
-      const y = isStacked ? startY + index * (cardHeight + gap) : startY
+      const column = isStacked ? 0 : index % desktopColumns
+      const row = isStacked ? index : Math.floor(index / desktopColumns)
+      const x = isStacked ? startX : startX + column * (cardWidth + gap)
+      const y = isStacked ? startY + row * (cardHeight + gap) : startY + row * (cardHeight + gap)
       this.createVehicleCard(vehicle, x, y, cardWidth, cardHeight)
     })
   }
@@ -138,14 +178,14 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    const sprite = this.add.image(0, -8, vehicle.assetKey)
-    const maxArtWidth = width - 90
-    const maxArtHeight = height * 0.38
+    const sprite = this.add.image(0, 6, vehicle.assetKey)
+    const maxArtWidth = width - 42
+    const maxArtHeight = height * 0.58
     const spriteScale = Math.min(maxArtWidth / sprite.width, maxArtHeight / sprite.height)
     sprite.setScale(spriteScale)
 
     const button = this.add.graphics()
-    button.fillStyle(vehicle.buttonColor, 1)
+    button.fillStyle(0x2d95b7, 1)
     button.fillRoundedRect(-116, height / 2 - 42, 232, 48, 18)
     button.lineStyle(3, 0x114154, 1)
     button.strokeRoundedRect(-116, height / 2 - 42, 232, 48, 18)
@@ -188,6 +228,14 @@ export class MenuScene extends Phaser.Scene {
     })
 
     hitArea.on('pointerdown', () => {
+      if (this.time.now < this.inputReadyAt) {
+        return
+      }
+
+      if (this.isDraggingCards) {
+        return
+      }
+
       this.tweens.killTweensOf(card)
       this.tweens.add({
         targets: card,
@@ -196,14 +244,90 @@ export class MenuScene extends Phaser.Scene {
         yoyo: true,
         ease: 'Quad.Out',
       })
+    })
+
+    hitArea.on('pointerup', () => {
+      if (this.time.now < this.inputReadyAt) {
+        return
+      }
+
+      if (this.suppressCardTap || this.isDraggingCards) {
+        return
+      }
+
       this.scene.start('wash', { vehicleId: vehicle.id })
     })
 
-    this.root?.add([card, hitArea])
+    this.cardsContainer?.add([card, hitArea])
   }
 
   private handleResize() {
     this.renderScene()
+  }
+
+  private handlePointerDown(pointer: Phaser.Input.Pointer) {
+    if (!this.cardsContainer || this.cardsMinOffsetY === 0 || this.time.now < this.inputReadyAt) {
+      return
+    }
+
+    this.activeScrollPointerId = pointer.id
+    this.scrollStartPointerY = pointer.y
+    this.scrollStartContainerY = this.cardsContainer.y
+    this.isDraggingCards = false
+    this.suppressCardTap = false
+  }
+
+  private handlePointerMove(pointer: Phaser.Input.Pointer) {
+    if (
+      !this.cardsContainer ||
+      this.cardsMinOffsetY === 0 ||
+      this.activeScrollPointerId !== pointer.id ||
+      !pointer.isDown
+    ) {
+      return
+    }
+
+    const deltaY = pointer.y - this.scrollStartPointerY
+
+    if (Math.abs(deltaY) > 10) {
+      this.isDraggingCards = true
+      this.suppressCardTap = true
+    }
+
+    if (!this.isDraggingCards) {
+      return
+    }
+
+    this.cardsContainer.y = Phaser.Math.Clamp(
+      this.scrollStartContainerY + deltaY,
+      this.cardsMinOffsetY,
+      this.cardsMaxOffsetY,
+    )
+  }
+
+  private handlePointerUp(pointer: Phaser.Input.Pointer) {
+    if (this.activeScrollPointerId !== pointer.id) {
+      return
+    }
+
+    this.activeScrollPointerId = null
+
+    if (this.isDraggingCards) {
+      this.time.delayedCall(0, () => {
+        this.suppressCardTap = false
+        this.isDraggingCards = false
+      })
+      return
+    }
+
+    this.suppressCardTap = false
+    this.isDraggingCards = false
+  }
+
+  private handleGameOut() {
+    this.activeScrollPointerId = null
+    this.suppressCardTap = false
+    this.isDraggingCards = false
   }
 
   private clearRoot() {
@@ -211,5 +335,7 @@ export class MenuScene extends Phaser.Scene {
       this.root.destroy(true)
       this.root = undefined
     }
+
+    this.cardsContainer = undefined
   }
 }
