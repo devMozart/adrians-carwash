@@ -1,4 +1,9 @@
-export type VehicleId = 'excavator' | 'bulldozer' | 'mobile-crane'
+export type VehicleId =
+  | 'excavator'
+  | 'bulldozer'
+  | 'mobile-crane'
+  | 'dump-truck'
+  | 'garbage-truck'
 
 export type VehicleDefinition = {
   id: VehicleId

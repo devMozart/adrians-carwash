@@ -25,12 +25,14 @@ export class MenuScene extends Phaser.Scene {
     this.input.on('pointermove', this.handlePointerMove, this)
     this.input.on('pointerup', this.handlePointerUp, this)
     this.input.on('gameout', this.handleGameOut, this)
+    this.input.on('wheel', this.handleWheel, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleResize, this)
       this.input.off('pointerdown', this.handlePointerDown, this)
       this.input.off('pointermove', this.handlePointerMove, this)
       this.input.off('pointerup', this.handlePointerUp, this)
       this.input.off('gameout', this.handleGameOut, this)
+      this.input.off('wheel', this.handleWheel, this)
       this.clearRoot()
     })
 
@@ -127,7 +129,7 @@ export class MenuScene extends Phaser.Scene {
     const contentBottom = startY + (rows - 1) * (cardHeight + gap) + cardHeight * 0.5
     const visibleBottom = height - 18
 
-    this.cardsMinOffsetY = isStacked ? Math.min(0, visibleBottom - contentBottom) : 0
+    this.cardsMinOffsetY = Math.min(0, visibleBottom - contentBottom)
     this.cardsMaxOffsetY = 0
 
     if (this.cardsContainer) {
@@ -322,6 +324,23 @@ export class MenuScene extends Phaser.Scene {
 
     this.suppressCardTap = false
     this.isDraggingCards = false
+  }
+
+  private handleWheel(
+    _pointer: Phaser.Input.Pointer,
+    _gameObjects: Phaser.GameObjects.GameObject[],
+    _deltaX: number,
+    deltaY: number,
+  ) {
+    if (!this.cardsContainer || this.cardsMinOffsetY === 0 || this.time.now < this.inputReadyAt) {
+      return
+    }
+
+    this.cardsContainer.y = Phaser.Math.Clamp(
+      this.cardsContainer.y - deltaY * 0.45,
+      this.cardsMinOffsetY,
+      this.cardsMaxOffsetY,
+    )
   }
 
   private handleGameOut() {

@@ -1,5 +1,7 @@
 import bulldozerImageUrl from '../../assets/vehicles/bulldozer.png'
+import dumpTruckImageUrl from '../../assets/vehicles/dumptruck.png'
 import excavatorImageUrl from '../../assets/vehicles/excavator.png'
+import garbageTruckImageUrl from '../../assets/vehicles/garbagetruck.png'
 import mobileCraneImageUrl from '../../assets/vehicles/mobilecrane.png'
 import type { VehicleDefinition, VehicleId } from '../types/gameTypes'
 
@@ -33,6 +35,26 @@ export const vehicleCatalog: VehicleDefinition[] = [
     accentText: '#ffe7a7',
     bannerColor: 0x7b5318,
     buttonColor: 0x3a9fcb,
+  },
+  {
+    id: 'dump-truck',
+    name: 'Dump Truck',
+    assetKey: 'vehicle-dump-truck',
+    imageUrl: dumpTruckImageUrl,
+    accentColor: 0xf0b64d,
+    accentText: '#ffe8aa',
+    bannerColor: 0x744d15,
+    buttonColor: 0x2d95b7,
+  },
+  {
+    id: 'garbage-truck',
+    name: 'Garbage Truck',
+    assetKey: 'vehicle-garbage-truck',
+    imageUrl: garbageTruckImageUrl,
+    accentColor: 0xf0c35f,
+    accentText: '#ffe8a7',
+    bannerColor: 0x7a5318,
+    buttonColor: 0x2d95b7,
   },
 ]
 
