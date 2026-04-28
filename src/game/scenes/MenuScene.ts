@@ -61,17 +61,57 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private drawBackdrop(width: number, height: number) {
+    const sunAuraOuter = this.add.circle(width * 0.14, height * 0.16, 122, 0xffe08a, 0.12)
+    const sunAuraMid = this.add.circle(width * 0.14, height * 0.16, 92, 0xffe58d, 0.18)
     const skyGlow = this.add.circle(width * 0.18, height * 0.14, 150, 0xffffff, 0.16)
+    const sunGlow = this.add.circle(width * 0.14, height * 0.16, 70, 0xfff1ae, 0.3)
     const sun = this.add.circle(width * 0.14, height * 0.16, 54, 0xffef9a, 0.92)
     const hillFar = this.add.ellipse(width * 0.3, height + 16, width * 0.95, height * 0.42, 0x8fd673, 1)
     const hillNear = this.add.ellipse(width * 0.7, height + 40, width * 1.15, height * 0.48, 0x58b85f, 1)
 
-    this.root?.add([skyGlow, sun, hillFar, hillNear])
+    this.root?.add([sunAuraOuter, sunAuraMid, skyGlow, sunGlow, sun, hillFar, hillNear])
+    this.animateSun([sunAuraOuter, sunAuraMid, skyGlow, sunGlow, sun])
 
     this.addBubble(width * 0.82, height * 0.16, 28)
     this.addBubble(width * 0.9, height * 0.26, 16)
     this.addBubble(width * 0.12, height * 0.34, 20)
     this.addBubble(width * 0.22, height * 0.27, 12)
+  }
+
+  private animateSun(sunLayers: Phaser.GameObjects.Arc[]) {
+    const [sunAuraOuter, sunAuraMid, skyGlow, sunGlow, sun] = sunLayers
+
+    this.tweens.add({
+      targets: [sunAuraOuter, skyGlow],
+      scaleX: 1.05,
+      scaleY: 1.05,
+      alpha: { from: undefined, to: 0.2 },
+      duration: 3600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
+
+    this.tweens.add({
+      targets: [sunAuraMid, sunGlow],
+      scaleX: 1.04,
+      scaleY: 1.04,
+      alpha: { from: undefined, to: 0.34 },
+      duration: 2800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
+
+    this.tweens.add({
+      targets: sun,
+      scaleX: 1.02,
+      scaleY: 1.02,
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
   }
 
   private addBubble(x: number, y: number, radius: number) {
@@ -186,8 +226,9 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     const sprite = this.add.image(0, 6, vehicle.assetKey)
-    const maxArtWidth = width - 42
-    const maxArtHeight = height * 0.58
+    const isDesktopLayout = this.scale.width >= 940
+    const maxArtWidth = width - (isDesktopLayout ? 24 : 42)
+    const maxArtHeight = height * (isDesktopLayout ? 0.66 : 0.58)
     const spriteScale = Math.min(maxArtWidth / sprite.width, maxArtHeight / sprite.height)
     sprite.setScale(spriteScale)
 

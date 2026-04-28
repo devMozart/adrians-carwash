@@ -12,6 +12,11 @@ const HOSE_MAX_ANGLE = Phaser.Math.DegToRad(-4)
 export class WashScene extends Phaser.Scene {
   private vehicleId: VehicleId = 'excavator'
   private root?: Phaser.GameObjects.Container
+  private driftingClouds: Array<{
+    cloud: Phaser.GameObjects.Container
+    driftSpeed: number
+    halfWidth: number
+  }> = []
   private overlayGraphics?: Phaser.GameObjects.Graphics
   private overlayBlocker?: Phaser.GameObjects.Zone
   private hoseGraphics?: Phaser.GameObjects.Graphics
@@ -85,6 +90,8 @@ export class WashScene extends Phaser.Scene {
   }
 
   update(_: number, delta: number) {
+    this.updateClouds(delta)
+
     const angleDelta = Phaser.Math.Angle.Wrap(this.targetHoseAngle - this.currentHoseAngle)
     this.currentHoseAngle += angleDelta * Math.min(1, delta * 0.012)
     this.drawHose()
@@ -110,13 +117,22 @@ export class WashScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#82d8ff')
     this.root = this.add.container(0, 0)
     this.hoseBase.set(width * 0.5, height - 8)
+    this.driftingClouds = []
 
-    const skyGlow = this.add.circle(width * 0.85, height * 0.16, 180, 0xffffff, 0.16)
-    const cloudA = this.add.ellipse(width * 0.22, height * 0.17, 158, 46, 0xffffff, 0.74)
-    const cloudB = this.add.ellipse(width * 0.72, height * 0.24, 126, 38, 0xffffff, 0.68)
+    const sunAuraOuter = this.add.circle(width * 0.15, height * 0.16, 118, 0xffe08a, 0.12)
+    const sunAuraMid = this.add.circle(width * 0.15, height * 0.16, 88, 0xffe58d, 0.18)
+    const skyGlow = this.add.circle(width * 0.2, height * 0.14, 154, 0xffffff, 0.16)
+    const sunGlow = this.add.circle(width * 0.15, height * 0.16, 68, 0xfff1ae, 0.3)
+    const sun = this.add.circle(width * 0.15, height * 0.16, 52, 0xffef9a, 0.92)
+    const cloudA = this.createDriftingCloud(width * 0.18, height * 0.17, 172, 48, 0.012, 0.74)
+    const cloudB = this.createDriftingCloud(width * 0.64, height * 0.24, 136, 40, 0.018, 0.68)
+    const cloudC = this.createDriftingCloud(width * 0.92, height * 0.14, 104, 32, 0.009, 0.62)
+    const farHillCenterY = height + (isMobileLayout ? -4 : -40)
+    const nearHillCenterY = height + (isMobileLayout ? 18 : -18)
+    const vehicleY = height * (isMobileLayout ? 0.655 : 0.545)
     const hillFar = this.add.ellipse(
       width * 0.34,
-      height + (isMobileLayout ? 26 : 10),
+      farHillCenterY,
       width * 0.92,
       height * (isMobileLayout ? 0.48 : 0.34),
       0x86d16c,
@@ -124,22 +140,13 @@ export class WashScene extends Phaser.Scene {
     )
     const hillNear = this.add.ellipse(
       width * 0.72,
-      height + (isMobileLayout ? 54 : 32),
+      nearHillCenterY,
       width * 1.18,
       height * (isMobileLayout ? 0.58 : 0.42),
       0x5db761,
       1,
     )
-    const dirtPatch = this.add.ellipse(
-      width * 0.5,
-      height * (isMobileLayout ? 0.935 : 0.9),
-      width * 0.7,
-      height * (isMobileLayout ? 0.17 : 0.13),
-      0x86633c,
-      0.55,
-    )
-
-    const sprite = this.add.image(width * 0.5, height * (isMobileLayout ? 0.63 : 0.53), vehicle.assetKey)
+    const sprite = this.add.image(width * 0.5, vehicleY, vehicle.assetKey)
     const maxSpriteWidth = width * (isMobileLayout ? 0.92 : 0.72)
     const maxSpriteHeight = height * (isMobileLayout ? 0.6 : 0.54)
     const spriteScale = Math.min(maxSpriteWidth / sprite.width, maxSpriteHeight / sprite.height)
@@ -246,11 +253,15 @@ export class WashScene extends Phaser.Scene {
 
     this.root.add([
       skyGlow,
+      sunAuraOuter,
+      sunAuraMid,
+      sunGlow,
+      sun,
       cloudA,
       cloudB,
+      cloudC,
       hillFar,
       hillNear,
-      dirtPatch,
       sprite,
       this.dirtOverlay.gameObject,
       this.sprayEmitter,
@@ -265,6 +276,7 @@ export class WashScene extends Phaser.Scene {
       backLabel,
       backHitArea,
     ])
+    this.animateSun([sunAuraOuter, sunAuraMid, skyGlow, sunGlow, sun])
 
     this.drawHose()
     this.drawDirtMeter()
@@ -406,6 +418,85 @@ export class WashScene extends Phaser.Scene {
     graphics.moveTo(nozzleBaseX - nozzlePx * (nozzleWidth * 0.36), nozzleBaseY - nozzlePy * (nozzleWidth * 0.36))
     graphics.lineTo(nozzleTipX - nozzlePx * (nozzleWidth * 0.2), nozzleTipY - nozzlePy * (nozzleWidth * 0.2))
     graphics.strokePath()
+  }
+
+  private createDriftingCloud(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    driftSpeed: number,
+    alpha: number,
+  ) {
+    const cloud = this.add.container(x, y)
+    const shadow = this.add.ellipse(4, 6, width * 0.84, height * 0.52, 0x8ec6df, alpha * 0.18)
+    const puffBackLeft = this.add.ellipse(-width * 0.22, height * 0.02, width * 0.3, height * 0.42, 0xffffff, alpha * 0.9)
+    const puffBackRight = this.add.ellipse(width * 0.22, 0, width * 0.28, height * 0.38, 0xffffff, alpha * 0.88)
+    const puffCenter = this.add.ellipse(0, -height * 0.06, width * 0.42, height * 0.58, 0xffffff, alpha)
+    const puffLeft = this.add.ellipse(-width * 0.1, -height * 0.12, width * 0.26, height * 0.4, 0xffffff, alpha)
+    const puffRight = this.add.ellipse(width * 0.12, -height * 0.1, width * 0.24, height * 0.36, 0xffffff, alpha)
+    const base = this.add.ellipse(0, height * 0.1, width * 0.72, height * 0.34, 0xffffff, alpha * 0.94)
+
+    cloud.add([shadow, puffBackLeft, puffBackRight, base, puffCenter, puffLeft, puffRight])
+    this.driftingClouds.push({
+      cloud,
+      driftSpeed,
+      halfWidth: width * 0.5,
+    })
+
+    return cloud
+  }
+
+  private updateClouds(delta: number) {
+    if (this.driftingClouds.length === 0) {
+      return
+    }
+
+    const sceneWidth = this.scale.width
+
+    for (const driftingCloud of this.driftingClouds) {
+      driftingCloud.cloud.x += driftingCloud.driftSpeed * delta
+
+      if (driftingCloud.cloud.x - driftingCloud.halfWidth > sceneWidth) {
+        driftingCloud.cloud.x = -driftingCloud.halfWidth
+      }
+    }
+  }
+
+  private animateSun(sunLayers: Phaser.GameObjects.Arc[]) {
+    const [sunAuraOuter, sunAuraMid, skyGlow, sunGlow, sun] = sunLayers
+
+    this.tweens.add({
+      targets: [sunAuraOuter, skyGlow],
+      scaleX: 1.05,
+      scaleY: 1.05,
+      alpha: { from: undefined, to: 0.2 },
+      duration: 3600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
+
+    this.tweens.add({
+      targets: [sunAuraMid, sunGlow],
+      scaleX: 1.04,
+      scaleY: 1.04,
+      alpha: { from: undefined, to: 0.34 },
+      duration: 2800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
+
+    this.tweens.add({
+      targets: sun,
+      scaleX: 1.02,
+      scaleY: 1.02,
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    })
   }
 
   private syncSprayVisuals() {
@@ -670,7 +761,7 @@ export class WashScene extends Phaser.Scene {
     const height = this.scale.height
     const isMobileLayout = width < 768
     const modalWidth = Math.min(width - 40, isMobileLayout ? 360 : 460)
-    const modalHeight = isMobileLayout ? 258 : 268
+    const modalHeight = isMobileLayout ? 336 : 356
     const modalX = width * 0.5
     const modalY = height * 0.5
 
@@ -692,8 +783,12 @@ export class WashScene extends Phaser.Scene {
     board.lineStyle(3, 0xaf8751, 1)
     board.strokeRoundedRect(-modalWidth / 2 + 12, -modalHeight / 2 + 12, modalWidth - 24, modalHeight - 24, 20)
 
+    const award = this.add.image(0, -92, 'award-badge')
+    const awardSize = isMobileLayout ? 82 : 96
+    award.setScale(Math.min(awardSize / award.width, awardSize / award.height))
+
     const title = this.add
-      .text(0, -50, 'Cleaning completed!', {
+      .text(0, -18, 'Cleaning completed!', {
         fontFamily: TITLE_FONT,
         fontSize: isMobileLayout ? '28px' : '34px',
         color: '#fff6d2',
@@ -706,7 +801,7 @@ export class WashScene extends Phaser.Scene {
 
     const cleanAgainButton = this.createModalButton(
       0,
-      10,
+      62,
       Math.min(modalWidth - 70, 250),
       48,
       0x2fae73,
@@ -719,7 +814,7 @@ export class WashScene extends Phaser.Scene {
 
     const garageButton = this.createModalButton(
       0,
-      72,
+      124,
       Math.min(modalWidth - 70, 250),
       48,
       0x2d95b7,
@@ -730,7 +825,7 @@ export class WashScene extends Phaser.Scene {
       },
     )
 
-    modal.add([board, title, cleanAgainButton, garageButton])
+    modal.add([board, award, title, cleanAgainButton, garageButton])
     this.celebrationModal = modal
     this.root.add([this.overlayBlocker, modal])
     this.root.bringToTop(this.overlayBlocker)
@@ -815,6 +910,7 @@ export class WashScene extends Phaser.Scene {
     this.overlayGraphics = undefined
     this.overlayBlocker = undefined
     this.celebrationModal = undefined
+    this.driftingClouds = []
     this.activeFireworks = []
     this.impactGraphics = undefined
     this.dirtMeterGraphics = undefined

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import adrianImageUrl from '../../assets/adrian.png'
+import awardImageUrl from '../../assets/award.png'
 import celebrationAudioUrl from '../../assets/audio/celebration.ogg'
 import clickAudioUrl from '../../assets/audio/click.ogg'
 import waterAudioUrl from '../../assets/audio/water.mp3'
@@ -12,6 +13,7 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     this.load.image('mascot-adrian', adrianImageUrl)
+    this.load.image('award-badge', awardImageUrl)
     this.load.audio('ui-click', clickAudioUrl)
     this.load.audio('celebration-fanfare', celebrationAudioUrl)
     this.load.audio('water-loop', waterAudioUrl)
