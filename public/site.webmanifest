@@ -1,9 +1,9 @@
 {
   "name": "Adrian's Carwash",
   "short_name": "Carwash",
-  "description": "A playful vehicle-cleaning game for desktop and mobile.",
-  "id": "/",
-  "start_url": "/",
+  "description": "A playful browser game where players wash muddy trucks and construction vehicles on desktop and mobile.",
+  "id": "https://carwash.athemedia.se/",
+  "start_url": "https://carwash.athemedia.se/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
