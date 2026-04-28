@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import waterAudioUrl from '../../assets/audio/water.mp3'
 import { getVehicleById } from '../config/vehicleCatalog'
 import { DirtOverlay } from '../systems/DirtOverlay'
 import type { WashSceneData, VehicleId } from '../types/gameTypes'
@@ -23,6 +24,7 @@ export class WashScene extends Phaser.Scene {
   private celebrationModal?: Phaser.GameObjects.Container
   private fireworkTimer?: Phaser.Time.TimerEvent
   private activeFireworks: Phaser.GameObjects.Particles.ParticleEmitter[] = []
+  private waterLoopAudio?: HTMLAudioElement
   private dirtOverlay?: DirtOverlay
   private currentHoseAngle = HOSE_BASE_ANGLE
   private targetHoseAngle = HOSE_BASE_ANGLE
@@ -52,10 +54,17 @@ export class WashScene extends Phaser.Scene {
   create() {
     this.buildParticleTextures()
     this.isComplete = false
+    this.waterLoopAudio = new Audio(waterAudioUrl)
+    this.waterLoopAudio.loop = true
+    this.waterLoopAudio.preload = 'auto'
+    this.waterLoopAudio.volume = 0.68
 
     this.scale.on('resize', this.handleResize, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleResize, this)
+      this.stopWaterLoop()
+      this.waterLoopAudio?.pause()
+      this.waterLoopAudio = undefined
       this.clearRoot()
     })
 
@@ -230,7 +239,8 @@ export class WashScene extends Phaser.Scene {
 
     const backHitArea = this.add.zone(24, 22, 140, 48).setOrigin(0)
     backHitArea.setInteractive({ useHandCursor: true })
-    backHitArea.on('pointerdown', () => {
+    backHitArea.on('pointerup', () => {
+      this.playUiClick()
       this.scene.start('menu')
     })
 
@@ -272,6 +282,7 @@ export class WashScene extends Phaser.Scene {
 
     this.spraying = true
     this.updateSprayTarget(pointer)
+    this.startWaterLoop()
   }
 
   private handlePointerMove(pointer: Phaser.Input.Pointer) {
@@ -404,6 +415,8 @@ export class WashScene extends Phaser.Scene {
       return
     }
 
+    this.startWaterLoop()
+
     const distance = Phaser.Math.Distance.Between(
       this.nozzleTip.x,
       this.nozzleTip.y,
@@ -481,6 +494,7 @@ export class WashScene extends Phaser.Scene {
 
   private stopSpray() {
     this.spraying = false
+    this.stopWaterLoop()
     this.sprayEmitter?.stop()
     this.sprayMistEmitter?.stop()
     this.splashEmitter?.stop()
@@ -564,6 +578,7 @@ export class WashScene extends Phaser.Scene {
     this.isComplete = true
     this.stopSpray()
     this.drawDirtMeter()
+    this.sound.play('celebration-fanfare', { volume: 0.55 })
     this.startCelebration()
     this.drawCompletionOverlay()
   }
@@ -783,6 +798,7 @@ export class WashScene extends Phaser.Scene {
     })
 
     hitArea.on('pointerup', () => {
+      this.playUiClick()
       onClick()
     })
 
@@ -824,5 +840,35 @@ export class WashScene extends Phaser.Scene {
     spark.fillCircle(6, 6, 3)
     spark.generateTexture(textureKey, 16, 16)
     spark.destroy()
+  }
+
+  private playUiClick() {
+    this.sound.play('ui-click', { volume: 0.45 })
+  }
+
+  private startWaterLoop() {
+    if (!this.waterLoopAudio) {
+      return
+    }
+
+    if (!this.waterLoopAudio.paused) {
+      return
+    }
+
+    this.waterLoopAudio.currentTime = 0
+    void this.waterLoopAudio.play().catch(() => {
+      // Ignore blocked autoplay attempts; the next direct press can retry.
+    })
+  }
+
+  private stopWaterLoop() {
+    if (!this.waterLoopAudio) {
+      return
+    }
+
+    this.waterLoopAudio.pause()
+    this.waterLoopAudio.currentTime = 0
+    this.waterLoopAudio.volume = 0.68
+    this.waterLoopAudio.loop = true
   }
 }

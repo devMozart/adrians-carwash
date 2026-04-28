@@ -21,9 +21,6 @@ export function createGame(parent: HTMLDivElement) {
     input: {
       activePointers: 2,
     },
-    audio: {
-      noAudio: true,
-    },
     scene: [BootScene, MenuScene, WashScene],
   })
 }

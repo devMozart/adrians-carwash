@@ -85,6 +85,7 @@ export class MenuScene extends Phaser.Scene {
     const bannerHeight = 88
     const bannerX = width * 0.5 - bannerWidth * 0.5
     const bannerY = y - bannerHeight * 0.5
+    const mascot = this.add.image(bannerX + 70, bannerY + bannerHeight * 0.5 + 6, 'mascot-adrian')
 
     const banner = this.add.graphics()
     banner.fillStyle(0x5f3b25, 1)
@@ -108,7 +109,11 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setShadow(0, 4, '#513116', 0, true, true)
 
-    this.root?.add([banner, title])
+    const mascotHeight = width < 640 ? 88 : 122
+    const mascotScale = mascotHeight / mascot.height
+    mascot.setOrigin(0.5, 1).setScale(mascotScale)
+
+    this.root?.add([mascot, banner, title])
   }
 
   private drawVehicleCards(width: number, height: number, top: number, titleY: number) {
@@ -257,6 +262,7 @@ export class MenuScene extends Phaser.Scene {
         return
       }
 
+      this.playUiClick()
       this.scene.start('wash', { vehicleId: vehicle.id })
     })
 
@@ -356,5 +362,9 @@ export class MenuScene extends Phaser.Scene {
     }
 
     this.cardsContainer = undefined
+  }
+
+  private playUiClick() {
+    this.sound.play('ui-click', { volume: 0.45 })
   }
 }
